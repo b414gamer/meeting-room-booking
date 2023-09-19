@@ -21,11 +21,15 @@ func main() {
 	// AutoMigrate will create the tables and keep them updated with the model
 	config.DB.AutoMigrate(&models.User{}, &models.Room{}, &models.Booking{})
 
+	// Insert mock rooms
+	InsertMockRooms()
+
 	// Set up routes, middleware, and start the server here...
 
 	r := mux.NewRouter()
 	r.HandleFunc("/login", handlers.LoginHandler).Methods("POST")
 	r.HandleFunc("/register", handlers.RegisterHandler).Methods("POST")
+	r.HandleFunc("/rooms", handlers.ListRoomsHandler).Methods("GET")
 
 	// http.Handle("/", r)
 	// http.ListenAndServe(":80", nil)
