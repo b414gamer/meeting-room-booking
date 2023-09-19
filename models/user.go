@@ -1,9 +1,13 @@
 package models
 
 import (
+	"encoding/base64"
 	"errors"
 	"meeting-room-booking/config"
+	"strings"
 	"time"
+
+	"golang.org/x/crypto/argon2"
 )
 
 type User struct {
@@ -25,15 +29,36 @@ type User struct {
 // }
 
 func ValidateUserCredentials(email, password string) (*User, error) {
+	// var user User
+
+	// //Query the database for a user with the given email
+	// result := config.DB.Where("email = ?", email).First(&user)
+
+	// //Check if a user with the given email was found and the password matches
+	// if result.Error == nil && user.Password == password {
+	// 	return &user, nil
+	// }
+
+	// return nil, errors.New("invalid email or password")
+
 	var user User
-
-	//Query the database for a user with the given email
-	result := config.DB.Where("email = ?", email).First(&user)
-
-	//Check if a user with the given email was found and the password matches
-	if result.Error == nil && user.Password == password {
-		return &user, nil
+	if err := config.DB.Where("email = ?", email).First(&user).Error; err != nil {
+		return nil, err
 	}
 
-	return nil, errors.New("invalid email or password")
+	saltAndHash := strings.Split(user.Password, "$")
+	if len(saltAndHash) != 2 {
+		return nil, errors.New("stored password is not in the correct format")
+	}
+
+	salt, err := base64.RawStdEncoding.DecodeString(saltAndHash[0])
+	if err != nil {
+		return nil, err
+	}
+
+	hashedPassword := argon2.IDKey([]byte(password), salt, 1, 64*1024, 4, 32)
+	if saltAndHash[1] != base64.RawStdEncoding.EncodeToString(hashedPassword) {
+		return nil, errors.New("invalid password")
+	}
+	return &user, nil
 }
