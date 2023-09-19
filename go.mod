@@ -9,6 +9,11 @@ require (
 )
 
 require (
+	golang.org/x/crypto v0.13.0 // direct
+	golang.org/x/sys v0.12.0 // indirect
+)
+
+require (
 	github.com/go-sql-driver/mysql v1.7.1 // indirect
 	github.com/gorilla/mux v1.8.0
 	github.com/jinzhu/inflection v1.0.0 // indirect
