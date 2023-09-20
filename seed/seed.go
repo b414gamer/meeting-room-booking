@@ -1,5 +1,5 @@
 // Description: Seed data for database
-package main
+package seed
 
 import (
 	"meeting-room-booking/config"

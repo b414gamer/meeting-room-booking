@@ -5,6 +5,7 @@ import (
 	"meeting-room-booking/config"
 	"meeting-room-booking/handlers"
 	"meeting-room-booking/models"
+	"meeting-room-booking/seed"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -22,7 +23,7 @@ func main() {
 	config.DB.AutoMigrate(&models.User{}, &models.Room{}, &models.Booking{})
 
 	// Insert mock rooms
-	InsertMockRooms()
+	seed.InsertMockRooms()
 
 	// Set up routes, middleware, and start the server here...
 
@@ -48,4 +49,8 @@ func main() {
 	// if err != nil {
 	// 	log.Fatalf("Error starting server: %v", err)
 	// }
+}
+
+func InsertMockRooms() {
+	panic("unimplemented")
 }
