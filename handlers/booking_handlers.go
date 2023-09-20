@@ -10,9 +10,9 @@ import (
 )
 
 type BookingRequest struct {
-	RoomID uint	  `json:"room_id"`
+	RoomID    uint      `json:"room_id"`
 	StartTime time.Time `json:"startTime"`
-	EndTime time.Time `json:"endTime"`
+	EndTime   time.Time `json:"endTime"`
 }
 
 func BookRoomHandler(w http.ResponseWriter, r *http.Request) {
@@ -23,23 +23,23 @@ func BookRoomHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Add validations here
+	//validations here
 	if bookingRequest.RoomID == 0 || bookingRequest.StartTime.IsZero() || bookingRequest.EndTime.IsZero() {
 		http.Error(w, "Room ID, start time and end time are required", http.StatusBadRequest)
 		return
 	}
 
-	// TODO: Check room availability
+	//Check room availability
 	if bookingRequest.StartTime.After(bookingRequest.EndTime) {
 		http.Error(w, "Start time cannot be after end time", http.StatusBadRequest)
 		return
 	}
 
-	// TODO: Create booking in the database
+	//Create booking in the database
 	booking := models.Booking{
-		RoomID: bookingRequest.RoomID,
+		RoomID:    bookingRequest.RoomID,
 		StartTime: bookingRequest.StartTime,
-		EndTime: bookingRequest.EndTime,
+		EndTime:   bookingRequest.EndTime,
 	}
 
 	result := config.DB.Create(&booking)
@@ -49,7 +49,7 @@ func BookRoomHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Return response
+	//Return response
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"message": "Room booked successfully",
