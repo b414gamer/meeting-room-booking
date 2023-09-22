@@ -118,13 +118,12 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-var jwtSecret = os.Getenv("JWT_SECRET") // Move this to an environment variable or config file in production
-
 func generateJWTToken(user *models.User) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"userID": user.UserID,
 		"exp":    time.Now().Add(time.Hour * 24).Unix(), // Token expires after 24 hours
 	})
+	jwtSecret := os.Getenv("JWT_SECRET")
 
 	return token.SignedString([]byte(jwtSecret))
 }

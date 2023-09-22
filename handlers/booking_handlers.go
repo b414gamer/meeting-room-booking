@@ -2,11 +2,16 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"meeting-room-booking/config"
 	"meeting-room-booking/models"
 	"net/http"
+	"os"
+	"strings"
 	"time"
+
+	"github.com/dgrijalva/jwt-go"
 )
 
 type BookingRequest struct {
@@ -35,12 +40,65 @@ func BookRoomHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//Extract token from Authorization header
+	tokenHeader := r.Header.Get("Authorization")
+	if tokenHeader == "" {
+		http.Error(w, "Missing auth token", http.StatusForbidden)
+		return
+	}
+
+	//The token usually comes in format `Bearer <token>`, hence we split by space
+	splitToken := strings.Split(tokenHeader, " ")
+	if len(splitToken) != 2 {
+		http.Error(w, "Invalid token format", http.StatusForbidden)
+		return
+	}
+	tokenString := splitToken[1]
+
+	//Parse and validate the token
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method : %v", token.Header["alg"])
+		}
+		return []byte(os.Getenv("JWT_SECRET")), nil
+	})
+
+	if err != nil {
+		log.Printf("Token validation error: %v", err)
+		http.Error(w, "Invalid token :", http.StatusForbidden)
+		return
+	}
+
+	//Extract user ID from the token claims
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		http.Error(w, "Invalid token", http.StatusForbidden)
+		return
+	}
+	userID, ok := claims["userID"].(float64) // jwt-go library decodes numbers as float64
+	if !ok {
+		http.Error(w, "Invalid token claims", http.StatusForbidden)
+		return
+	}
+
+	//Room availability check
+	var overlappingBookings []models.Booking
+	config.DB.Where("room_id = ? AND ((start_time BETWEEN ? AND ?) OR (end_time BETWEEN ? AND ?) OR (start_time <= ? AND end_time >= ?))", bookingRequest.RoomID, bookingRequest.StartTime, bookingRequest.EndTime, bookingRequest.StartTime, bookingRequest.EndTime, bookingRequest.StartTime, bookingRequest.EndTime).Find(&overlappingBookings)
+
+	if len(overlappingBookings) > 0 {
+		http.Error(w, "Room is already booked for the specified time", http.StatusBadRequest)
+		return
+	}
+
 	//Create booking in the database
 	booking := models.Booking{
 		RoomID:    bookingRequest.RoomID,
 		StartTime: bookingRequest.StartTime,
 		EndTime:   bookingRequest.EndTime,
 	}
+
+	//Set the UserID in the booking object
+	booking.UserID = uint(userID)
 
 	result := config.DB.Create(&booking)
 	if result.Error != nil {
@@ -55,5 +113,4 @@ func BookRoomHandler(w http.ResponseWriter, r *http.Request) {
 		"message": "Room booked successfully",
 		"booking": booking,
 	})
-
 }

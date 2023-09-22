@@ -21,6 +21,7 @@ func main() {
 
 	// AutoMigrate will create the tables and keep them updated with the model
 	config.DB.AutoMigrate(&models.User{}, &models.Room{}, &models.Booking{})
+	config.LoadEnv()
 
 	// Insert mock rooms
 	seed.InsertMockRooms()
@@ -31,6 +32,7 @@ func main() {
 	r.HandleFunc("/login", handlers.LoginHandler).Methods("POST")
 	r.HandleFunc("/register", handlers.RegisterHandler).Methods("POST")
 	r.HandleFunc("/rooms", handlers.ListRoomsHandler).Methods("GET")
+	r.HandleFunc("/bookings", handlers.BookRoomHandler).Methods("POST")
 
 	// http.Handle("/", r)
 	// http.ListenAndServe(":80", nil)
