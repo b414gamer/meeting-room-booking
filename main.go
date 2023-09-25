@@ -7,11 +7,16 @@ import (
 	"meeting-room-booking/models"
 	"meeting-room-booking/seed"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 )
 
 func main() {
+	// Set timezone to UTC+7
+	loc := time.FixedZone("UTC+7", 7*60*60)
+	time.Local = loc
+
 	config.InitDB()
 	sqlDB, err := config.DB.DB()
 	if err != nil {
