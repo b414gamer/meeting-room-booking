@@ -40,44 +40,9 @@ func BookRoomHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//Extract token from Authorization header
-	tokenHeader := r.Header.Get("Authorization")
-	if tokenHeader == "" {
-		http.Error(w, "Missing auth token", http.StatusForbidden)
-		return
-	}
-
-	//The token usually comes in format `Bearer <token>`, hence we split by space
-	splitToken := strings.Split(tokenHeader, " ")
-	if len(splitToken) != 2 {
-		http.Error(w, "Invalid token format", http.StatusForbidden)
-		return
-	}
-	tokenString := splitToken[1]
-
-	//Parse and validate the token
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method : %v", token.Header["alg"])
-		}
-		return []byte(os.Getenv("JWT_SECRET")), nil
-	})
-
+	userID, err := extractUserIDFromToken(r)
 	if err != nil {
-		log.Printf("Token validation error: %v", err)
-		http.Error(w, "Invalid token :", http.StatusForbidden)
-		return
-	}
-
-	//Extract user ID from the token claims
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok || !token.Valid {
-		http.Error(w, "Invalid token", http.StatusForbidden)
-		return
-	}
-	userID, ok := claims["userID"].(float64) // jwt-go library decodes numbers as float64
-	if !ok {
-		http.Error(w, "Invalid token claims", http.StatusForbidden)
+		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
 
@@ -90,11 +55,16 @@ func BookRoomHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Adjust the time to UTC+7 before saving it to the database
+	// Manually adjust the time to UTC+7 before saving it to the database
+	adjustedStartTime := bookingRequest.StartTime.Add(-7 * time.Hour)
+	adjustedEndTime := bookingRequest.EndTime.Add(-7 * time.Hour)
+
 	//Create booking in the database
 	booking := models.Booking{
 		RoomID:    bookingRequest.RoomID,
-		StartTime: bookingRequest.StartTime,
-		EndTime:   bookingRequest.EndTime,
+		StartTime: adjustedStartTime,
+		EndTime:   adjustedEndTime,
 	}
 
 	//Set the UserID in the booking object
@@ -113,4 +83,64 @@ func BookRoomHandler(w http.ResponseWriter, r *http.Request) {
 		"message": "Room booked successfully",
 		"booking": booking,
 	})
+}
+
+func ListBookingsHandler(w http.ResponseWriter, r *http.Request) {
+	userID, err := extractUserIDFromToken(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	var bookings []models.Booking
+
+	// Fetch bookings from the database for the specific user
+	result := config.DB.Where("user_id = ?", uint(userID)).Find(&bookings)
+	if result.Error != nil {
+		http.Error(w, "Error fetching bookings", http.StatusInternalServerError)
+		return
+	}
+
+	// Return the list of bookings in the response
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(bookings)
+}
+
+func extractUserIDFromToken(r *http.Request) (uint, error) {
+	// Extract token from Authorization header
+	tokenHeader := r.Header.Get("Authorization")
+	if tokenHeader == "" {
+		return 0, fmt.Errorf("missing auth token")
+	}
+
+	// The token usually comes in format `Bearer <token>`, hence we split by space
+	splitToken := strings.Split(tokenHeader, " ")
+	if len(splitToken) != 2 {
+		return 0, fmt.Errorf("invalid token format")
+	}
+	tokenString := splitToken[1]
+
+	// Parse and validate the token
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method : %v", token.Header["alg"])
+		}
+		return []byte(os.Getenv("JWT_SECRET")), nil
+	})
+
+	if err != nil {
+		return 0, fmt.Errorf("invalid token: %v", err)
+	}
+
+	// Extract user ID from the token claims
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		return 0, fmt.Errorf("invalid token")
+	}
+	userID, ok := claims["userID"].(float64) // jwt-go library decodes numbers as float64
+	if !ok {
+		return 0, fmt.Errorf("invalid token claims")
+	}
+
+	return uint(userID), nil
 }

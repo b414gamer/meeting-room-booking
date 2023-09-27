@@ -38,6 +38,7 @@ func main() {
 	r.HandleFunc("/register", handlers.RegisterHandler).Methods("POST")
 	r.HandleFunc("/rooms", handlers.ListRoomsHandler).Methods("GET")
 	r.HandleFunc("/bookings", handlers.BookRoomHandler).Methods("POST")
+	r.HandleFunc("/bookings", handlers.ListBookingsHandler).Methods("GET")
 
 	// http.Handle("/", r)
 	// http.ListenAndServe(":80", nil)
