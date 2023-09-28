@@ -8,10 +8,12 @@ import (
 	"meeting-room-booking/models"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
+	"github.com/gorilla/mux"
 )
 
 type BookingRequest struct {
@@ -143,4 +145,82 @@ func extractUserIDFromToken(r *http.Request) (uint, error) {
 	}
 
 	return uint(userID), nil
+}
+
+func UpdateBookingHandler(w http.ResponseWriter, r *http.Request) {
+	// Extract booking ID from URL or another source
+	vars := mux.Vars(r)
+	bookingID, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "Invalid booking ID", http.StatusBadRequest)
+		return
+	}
+
+	var updateRequest BookingRequest
+	err = json.NewDecoder(r.Body).Decode(&updateRequest)
+	if err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	// Validate user and retrieve existing booking...
+	userID, err := extractUserIDFromToken(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	var booking models.Booking
+	result := config.DB.Where("booking_id = ? AND user_id = ?", bookingID, userID).First(&booking)
+	if result.Error != nil {
+		http.Error(w, "Booking not found", http.StatusNotFound)
+		return
+	}
+
+	// Validate new booking details...
+	if updateRequest.StartTime.IsZero() || updateRequest.EndTime.IsZero() {
+		http.Error(w, "Start time and end time are required", http.StatusBadRequest)
+		return
+	}
+
+	if updateRequest.StartTime.After(updateRequest.EndTime) {
+		http.Error(w, "Start time cannot be after end time", http.StatusBadRequest)
+		return
+	}
+
+	// Check room availability for the new time slot...
+	var overlappingBookings []models.Booking
+
+	config.DB.Where("room_id = ? AND ((start_time BETWEEN ? AND ?) OR (end_time BETWEEN ? AND ?) OR (start_time <= ? AND end_time >= ?))", booking.RoomID, updateRequest.StartTime, updateRequest.EndTime, updateRequest.StartTime, updateRequest.EndTime, updateRequest.StartTime, updateRequest.EndTime).Find(&overlappingBookings)
+
+	if len(overlappingBookings) > 0 {
+		http.Error(w, "Room is already booked for the specified time", http.StatusBadRequest)
+		return
+	}
+
+	// Adjust the time to UTC+7 before saving it to the database
+	adjustedStartTime := updateRequest.StartTime.Add(-7 * time.Hour)
+	adjustedEndTime := updateRequest.EndTime.Add(-7 * time.Hour)
+
+	log.Printf("Booking ID: %d, User ID: %d", bookingID, userID)
+
+	// Update booking in the database...
+	result = config.DB.Model(&booking).Updates(models.Booking{
+		StartTime: adjustedStartTime,
+		EndTime:   adjustedEndTime,
+	})
+	if result.Error != nil {
+		http.Error(w, "Error updating booking", http.StatusInternalServerError)
+		return
+	}
+
+	// Reload the updated booking object
+	config.DB.First(&booking, bookingID)
+
+	// Return response...
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "Booking updated successfully",
+		"booking": booking,
+	})
 }
