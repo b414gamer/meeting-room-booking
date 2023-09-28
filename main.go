@@ -39,6 +39,7 @@ func main() {
 	r.HandleFunc("/rooms", handlers.ListRoomsHandler).Methods("GET")
 	r.HandleFunc("/bookings", handlers.BookRoomHandler).Methods("POST")
 	r.HandleFunc("/bookings", handlers.ListBookingsHandler).Methods("GET")
+	r.HandleFunc("/bookings/{id:[0-9]+}", handlers.UpdateBookingHandler).Methods("PUT")
 
 	// http.Handle("/", r)
 	// http.ListenAndServe(":80", nil)
