@@ -224,3 +224,41 @@ func UpdateBookingHandler(w http.ResponseWriter, r *http.Request) {
 		"booking": booking,
 	})
 }
+
+func CancelBookingHandler(w http.ResponseWriter, r *http.Request) {
+	// Extract booking ID from URL
+	vars := mux.Vars(r)
+	bookingID, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "Invalid booking ID", http.StatusBadRequest)
+		return
+	}
+
+	// Validate user and retrieve existing booking
+	userID, err := extractUserIDFromToken(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	// Check if the booking exists and belongs to the user
+	var booking models.Booking
+	result := config.DB.Where("booking_id = ? AND user_id = ?", bookingID, userID).First(&booking)
+	if result.Error != nil {
+		http.Error(w, "Booking not found", http.StatusNotFound)
+		return
+	}
+
+	// Delete the booking
+	result = config.DB.Delete(&booking)
+	if result.Error != nil {
+		http.Error(w, "Error deleting booking", http.StatusInternalServerError)
+		return
+	}
+
+	// Return response
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "Booking canceled successfully",
+	})
+}
